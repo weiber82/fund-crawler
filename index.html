@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能資產配置 & 未來預測 (嚴格回測版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans p-4">
+
+<div class="max-w-6xl mx-auto space-y-6">
+    
+    <div class="bg-gradient-to-r from-red-700 to-red-900 p-6 rounded-xl text-white shadow-lg flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold"><i class="fa-solid fa-chart-line mr-2"></i> 智能資產配置 & 未來預測</h1>
+            <p class="text-red-100 text-sm mt-1">Portfolio Backtest & Future Projection (TW Mode)</p>
+        </div>
+        <div class="text-right">
+            <div class="text-xs opacity-70">資料來源</div>
+            <div class="font-bold">Supabase Database</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="lg:col-span-1 space-y-6">
+            
+            <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg text-slate-700">🛒 建立投資組合</h3>
+                    <button onclick="addFundRow()" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200 transition">
+                        <i class="fa-solid fa-plus"></i> 新增標的
+                    </button>
+                </div>
+                
+                <div id="portfolio-list" class="space-y-3 mb-4"></div>
+
+                <div class="flex justify-between text-sm font-bold text-slate-600 border-t pt-3">
+                    <span>總配置比例:</span>
+                    <span id="total-weight" class="text-green-600">0%</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
+                <h3 class="font-bold text-lg text-slate-700 mb-4">⚙️ 設定參數</h3>
+                
+                <div class="space-y-4">
+                    
+                    <div class="flex bg-slate-100 p-1 rounded-lg">
+                        <button onclick="setMode('dca')" id="btn-dca" class="flex-1 py-2 text-sm font-bold rounded-md shadow-sm transition bg-white text-red-600">
+                            定期定額
+                        </button>
+                        <button onclick="setMode('lump')" id="btn-lump" class="flex-1 py-2 text-sm font-bold rounded-md transition text-slate-500 hover:text-slate-700">
+                            單筆申購 (躉繳)
+                        </button>
+                    </div>
+
+                    <div class="bg-yellow-50 p-2 rounded border border-yellow-200">
+                        <label class="block text-xs font-bold text-yellow-800 mb-1">📅 設定進場日期 (回測起點)</label>
+                        <input type="date" id="start-date" value="2020-01-01" class="w-full p-2 border rounded bg-white focus:ring-2 focus:ring-red-500 outline-none transition cursor-pointer font-bold text-slate-700">
+                        <p class="text-[10px] text-yellow-600 mt-1">* 系統將假設您在此日進場投資</p>
+                    </div>
+
+                    <div id="dca-inputs" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">每月扣款金額 (TWD)</label>
+                            <input type="number" id="monthly-amount" value="10000" step="1000" class="w-full p-2 border rounded bg-slate-50 focus:ring-2 focus:ring-red-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">每月扣款日 (1-28號)</label>
+                            <input type="number" id="invest-day" value="6" min="1" max="28" class="w-full p-2 border rounded bg-slate-50 focus:ring-2 focus:ring-red-500 outline-none transition">
+                        </div>
+                    </div>
+
+                    <div id="lump-inputs" class="hidden space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">單筆投入金額 (TWD)</label>
+                            <input type="number" id="lump-sum-amount" value="1000000" step="10000" class="w-full p-2 border rounded bg-slate-50 focus:ring-2 focus:ring-red-500 outline-none transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">匯率設定 (USD to TWD)</label>
+                        <input type="number" id="usd-rate" value="32.5" step="0.1" class="w-full p-2 border rounded bg-slate-50 focus:ring-2 focus:ring-red-500 outline-none transition">
+                        <p class="text-[10px] text-gray-400 mt-1">* 僅針對美元計價基金進行換算</p>
+                    </div>
+                </div>
+
+                <button onclick="runCalculation()" class="w-full mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg shadow transition transform active:scale-95">
+                    🚀 開始試算
+                </button>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-gray-400">
+                    <div class="text-xs text-gray-500">總投入本金</div>
+                    <div id="stat-cost" class="text-xl font-bold text-gray-800">$0</div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-red-500">
+                    <div class="text-xs text-gray-500">目前帳戶價值</div>
+                    <div id="stat-value" class="text-xl font-bold text-red-600">$0</div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-yellow-500">
+                    <div class="text-xs text-gray-500">總損益</div>
+                    <div id="stat-profit" class="text-xl font-bold text-yellow-600">$0</div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-purple-500">
+                    <div class="text-xs text-gray-500">歷史年化報酬 (CAGR)</div>
+                    <div id="stat-cagr" class="text-xl font-bold text-purple-600">0%</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-lg border border-slate-200 relative">
+                <div id="loading-overlay" class="absolute inset-0 bg-white/80 z-10 hidden flex flex-col items-center justify-center text-red-600">
+                    <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3"></i>
+                    <span class="font-bold">AI 運算中...</span>
+                </div>
+                <div id="chart-container" class="w-full h-[500px]"></div>
+            </div>
+
+            <div class="bg-slate-50 p-4 rounded-lg text-sm text-slate-700 border border-slate-200">
+                <h4 class="font-bold mb-1"><i class="fa-solid fa-crystal-ball"></i> 未來模擬說明</h4>
+                <p>虛線部分為基於該投資組合「歷史年化報酬率」與「歷史波動率」所推算的未來 5 年走勢。 <br>
+                <span class="text-red-600 font-bold">● 樂觀 (High)</span>: 假設年化報酬 + 1倍標準差 (紅漲)<br>
+                <span class="text-blue-600 font-bold">● 平均 (Avg)</span>: 假設維持歷史平均年化報酬 <br>
+                <span class="text-green-600 font-bold">● 悲觀 (Low)</span>: 假設年化報酬 - 1倍標準差 (綠跌)
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 🔑 請填入你的 Supabase 資訊
+    // ==========================================
+    const SUPABASE_URL = 'https://eytumbuyxpdvcoychphj.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_Xt1hKEf5Ye5p-vhFJvvOEg_JP4c2dGQ';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let myChart = null;
+    let allFundsList = []; 
+    let currentMode = 'dca'; 
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadFundList();
+        addFundRow();
+    });
+
+    window.setMode = function(mode) {
+        currentMode = mode;
+        const btnDca = document.getElementById('btn-dca');
+        const btnLump = document.getElementById('btn-lump');
+        const inputDca = document.getElementById('dca-inputs');
+        const inputLump = document.getElementById('lump-inputs');
+
+        if (mode === 'dca') {
+            btnDca.className = "flex-1 py-2 text-sm font-bold rounded-md shadow-sm transition bg-white text-red-600";
+            btnLump.className = "flex-1 py-2 text-sm font-bold rounded-md transition text-slate-500 hover:text-slate-700";
+            inputDca.classList.remove('hidden');
+            inputLump.classList.add('hidden');
+        } else {
+            btnLump.className = "flex-1 py-2 text-sm font-bold rounded-md shadow-sm transition bg-white text-red-600";
+            btnDca.className = "flex-1 py-2 text-sm font-bold rounded-md transition text-slate-500 hover:text-slate-700";
+            inputLump.classList.remove('hidden');
+            inputDca.classList.add('hidden');
+        }
+    }
+
+    async function loadFundList() {
+        try {
+            const { data, error } = await supabase.from('funds').select('id, name, currency').order('id');
+            if (error) throw error;
+            allFundsList = data;
+        } catch (err) {
+            console.error('載入清單失敗', err);
+            alert('無法連線資料庫，請檢查 Key');
+        }
+    }
+
+    window.addFundRow = function() {
+        const container = document.getElementById('portfolio-list');
+        const div = document.createElement('div');
+        div.className = "flex items-center gap-2 fund-row mb-2"; 
+        
+        let optionsHtml = '<option value="" disabled selected>選擇標的</option>';
+        allFundsList.forEach(f => {
+            let shortName = f.name.split('(')[0].trim();
+            if (shortName.length > 12) shortName = shortName.substring(0, 12) + '...';
+            optionsHtml += `<option value="${f.id}" data-curr="${f.currency}">[${f.currency}] ${shortName}</option>`;
+        });
+
+        div.innerHTML = `
+            <select class="fund-select flex-1 min-w-0 p-2 border rounded text-sm outline-none focus:border-red-500 truncate">
+                ${optionsHtml}
+            </select>
+            <div class="relative w-20 flex-shrink-0">
+                <input type="number" class="fund-weight w-full p-2 border rounded text-sm text-center outline-none focus:border-red-500" placeholder="%" value="100">
+                <span class="absolute right-6 top-2 text-gray-400 text-xs pointer-events-none">%</span>
+            </div>
+            <button onclick="this.parentElement.remove(); checkWeight();" class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        `;
+        container.appendChild(div);
+        div.querySelector('.fund-weight').addEventListener('input', checkWeight);
+        checkWeight();
+    }
+
+    function checkWeight() {
+        const inputs = document.querySelectorAll('.fund-weight');
+        let total = 0;
+        inputs.forEach(input => total += parseFloat(input.value) || 0);
+        const display = document.getElementById('total-weight');
+        display.innerText = total + "%";
+        display.className = total === 100 ? "text-blue-600 font-bold" : "text-red-500 font-bold";
+    }
+
+    // 4. 核心運算 (日期嚴格過濾版 + Forward Fill)
+    window.runCalculation = async function() {
+        const rows = document.querySelectorAll('.fund-row');
+        const portfolio = [];
+        let totalWeight = 0;
+
+        rows.forEach(row => {
+            const select = row.querySelector('.fund-select');
+            const weightInput = row.querySelector('.fund-weight');
+            const fundId = select.value;
+            const currency = select.options[select.selectedIndex]?.getAttribute('data-curr');
+            const weight = parseFloat(weightInput.value) || 0;
+
+            if (fundId && weight > 0) {
+                portfolio.push({ id: fundId, weight: weight / 100, currency: currency });
+                totalWeight += weight;
+            }
+        });
+
+        if (portfolio.length === 0) return alert("請至少選擇一檔基金");
+        if (Math.abs(totalWeight - 100) > 0.1) return alert("權重總和必須為 100%");
+
+        const monthlyAmt = parseFloat(document.getElementById('monthly-amount').value);
+        const lumpSumAmt = parseFloat(document.getElementById('lump-sum-amount').value);
+        const investDay = parseInt(document.getElementById('invest-day').value);
+        const usdRate = parseFloat(document.getElementById('usd-rate').value);
+        
+        // 取得使用者設定的「進場日期」
+        const userStartDateStr = document.getElementById('start-date').value;
+        const userStartDate = userStartDateStr ? new Date(userStartDateStr) : new Date('1990-01-01');
+
+        document.getElementById('loading-overlay').classList.remove('hidden');
+
+        try {
+            const promises = portfolio.map(item => 
+                supabase.from('fund_navs').select('nav_date, nav_value')
+                .eq('fund_id', item.id).order('nav_date', { ascending: true }).limit(50000)
+            );
+
+            const results = await Promise.all(promises);
+            const fundDataMap = {}; 
+
+            results.forEach((res, index) => {
+                if(res.error) throw res.error;
+                const data = res.data;
+                if(data.length === 0) throw new Error(`基金 ${portfolio[index].id} 無資料`);
+                fundDataMap[portfolio[index].id] = data;
+            });
+
+            // --- 步驟 A: 建立統一時間軸 ---
+            // 規則：只包含 >= 使用者設定日期 的交易日
+            let dateSet = new Set();
+            portfolio.forEach(p => {
+                fundDataMap[p.id].forEach(d => {
+                    if (new Date(d.nav_date) >= userStartDate) {
+                        dateSet.add(d.nav_date);
+                    }
+                });
+            });
+            const timeline = Array.from(dateSet).sort();
+
+            if(timeline.length === 0) throw new Error("選定的日期區間沒有資料，請將日期往前調整 (請選過去的日期)");
+
+            // 回測變數
+            let totalUnits = portfolio.map(() => 0); 
+            let totalCost = 0;
+            const chartDates = [];
+            const chartCost = [];
+            const chartValue = [];
+            
+            let lastKnownNavs = portfolio.map(() => null);
+            let lastInvestMonth = "";
+
+            // --- 步驟 B: 開始跑每一天 ---
+            timeline.forEach((dateStr, tIndex) => {
+                const currentDate = new Date(dateStr);
+                
+                // 1. 更新報價 (Forward Fill)
+                portfolio.forEach((p, idx) => {
+                    const fundNavs = fundDataMap[p.id];
+                    const navRecord = fundNavs.find(n => n.nav_date === dateStr);
+                    if (navRecord) {
+                        lastKnownNavs[idx] = navRecord.nav_value;
+                    }
+                });
+
+                const allFundsReady = lastKnownNavs.every(v => v !== null);
+
+                if (allFundsReady) {
+                    
+                    // 2. 交易邏輯
+                    
+                    // [單筆申購]：在時間軸的「第一天」直接買入
+                    // 這樣才符合「假設我在這天進場」的邏輯
+                    if (currentMode === 'lump' && totalCost === 0) {
+                        totalCost = lumpSumAmt;
+                        portfolio.forEach((p, idx) => {
+                            let exchangeRate = (p.currency === 'USD') ? usdRate : 1;
+                            const moneyForFund = lumpSumAmt * p.weight;
+                            totalUnits[idx] = (moneyForFund / exchangeRate) / lastKnownNavs[idx];
+                        });
+                    }
+
+                    // [定期定額]：依照日期扣款
+                    if (currentMode === 'dca') {
+                        const day = currentDate.getDate();
+                        const monthStr = dateStr.substring(0, 7);
+                        let isInvestDay = (day >= investDay && lastInvestMonth !== monthStr);
+                        
+                        if (isInvestDay) {
+                            totalCost += monthlyAmt;
+                            lastInvestMonth = monthStr;
+                            
+                            portfolio.forEach((p, idx) => {
+                                let nav = lastKnownNavs[idx]; 
+                                let exchangeRate = (p.currency === 'USD') ? usdRate : 1;
+                                const moneyForFund = monthlyAmt * p.weight;
+                                const unitsBought = (moneyForFund / exchangeRate) / nav;
+                                totalUnits[idx] += unitsBought;
+                            });
+                        }
+                    }
+
+                    // 3. 計算市值
+                    let currentPortfolioValue = 0;
+                    portfolio.forEach((p, idx) => {
+                        let nav = lastKnownNavs[idx];
+                        let exchangeRate = (p.currency === 'USD') ? usdRate : 1;
+                        currentPortfolioValue += totalUnits[idx] * nav * exchangeRate;
+                    });
+
+                    chartDates.push(dateStr);
+                    chartCost.push(totalCost);
+                    chartValue.push(currentPortfolioValue);
+                }
+            });
+
+            // --- 步驟 C: 未來預測 (基於回測區間的 CAGR) ---
+            let weightedCAGR = 0;
+            
+            // 這裡我們直接用「投資組合的總報酬」來算 CAGR，這樣最準確
+            // 公式: (期末總值 / 總投入成本) ^ (1 / 年數) - 1 
+            // 注意：這對單筆申購很準。對 DCA 來說這是回報率，不完全是 CAGR，但用來做趨勢預測是可以的
+            
+            const finalValue = chartValue[chartValue.length - 1];
+            const startValue = (currentMode === 'lump') ? totalCost : chartValue[0]; // DCA 一開始市值很低
+            
+            // 為了預測合理，我們計算每一檔基金在「這段期間」的個別表現來加權
+            portfolio.forEach((p, idx) => {
+                const fundNavs = fundDataMap[p.id];
+                // 找出區間內的頭尾
+                // 注意：要找 >= timeline[0] 的
+                const startNavObj = fundNavs.find(n => n.nav_date >= timeline[0]);
+                const endNavObj = fundNavs.find(n => n.nav_date === timeline[timeline.length-1]) || fundNavs[fundNavs.length-1];
+                
+                if (startNavObj && endNavObj) {
+                    const sPrice = startNavObj.nav_value;
+                    const ePrice = endNavObj.nav_value;
+                    const days = (new Date(endNavObj.nav_date) - new Date(startNavObj.nav_date)) / (1000*60*60*24);
+                    const years = days / 365.25;
+                    
+                    if (years > 0.5) {
+                        const fundCagr = Math.pow(ePrice / sPrice, 1/years) - 1;
+                        weightedCAGR += fundCagr * p.weight;
+                    }
+                }
+            });
+
+            // 如果回測時間太短，CAGR 可能會失真，給個預設值
+            if (chartDates.length < 100 && weightedCAGR === 0) weightedCAGR = 0.06;
+
+            let volatility = 0.15; 
+            if (weightedCAGR > 0.25) volatility = 0.25; 
+            if (weightedCAGR < 0.05) volatility = 0.08;
+
+            document.getElementById('stat-cost').innerText = '$' + Math.round(totalCost).toLocaleString();
+            document.getElementById('stat-value').innerText = '$' + Math.round(chartValue[chartValue.length-1]).toLocaleString();
+            const profitVal = chartValue[chartValue.length-1] - totalCost;
+            document.getElementById('stat-profit').innerText = '$' + Math.round(profitVal).toLocaleString();
+            document.getElementById('stat-profit').className = `text-xl font-bold ${profitVal >= 0 ? 'text-red-600' : 'text-green-600'}`;
+            document.getElementById('stat-cagr').innerText = (weightedCAGR * 100).toFixed(2) + '%';
+
+            const futureDates = [];
+            const futureHigh = [];
+            const futureAvg = [];
+            const futureLow = [];
+            
+            let lastVal = chartValue[chartValue.length-1];
+            let lastDate = new Date(chartDates[chartDates.length-1]);
+            const dailyGrowthAvg = Math.pow(1 + weightedCAGR, 1/250) - 1;
+
+            let projectionGrowth = dailyGrowthAvg;
+            if (weightedCAGR > 0.30) {
+                projectionGrowth = Math.pow(1 + 0.30, 1/250) - 1; 
+            }
+
+            for(let i=0; i<1250; i++) { 
+                lastDate.setDate(lastDate.getDate() + 1);
+                if(lastDate.getDay() === 0 || lastDate.getDay() === 6) continue;
+                
+                const dateStr = lastDate.toISOString().split('T')[0];
+                futureDates.push(dateStr);
+                const n = i + 1;
+
+                const valAvg = lastVal * Math.pow(1 + projectionGrowth, n);
+                const valHigh = valAvg * Math.exp(volatility * Math.sqrt(n/250));
+                const valLow = valAvg * Math.exp(-volatility * Math.sqrt(n/250));
+
+                futureAvg.push(Math.round(valAvg));
+                futureHigh.push(Math.round(valHigh));
+                futureLow.push(Math.round(valLow));
+            }
+
+            drawChart(chartDates, chartCost, chartValue, futureDates, futureHigh, futureAvg, futureLow);
+
+        } catch (err) {
+            console.error(err);
+            alert('錯誤: ' + err.message);
+        } finally {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+    }
+
+    function drawChart(dates, cost, value, fDates, fHigh, fAvg, fLow) {
+        const dom = document.getElementById('chart-container');
+        if (myChart) myChart.dispose(); 
+        myChart = echarts.init(dom);
+
+        const lastValue = value[value.length-1];
+        
+        const option = {
+            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+            legend: { top: 0 },
+            grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+            xAxis: {
+                type: 'category',
+                boundaryGap: false,
+                data: [...dates, ...fDates]
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: { formatter: (val) => (val/10000).toFixed(0) + '萬' }
+            },
+            dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 0 }],
+            series: [
+                {
+                    name: '累積本金', type: 'line',
+                    data: [...cost, ...Array(fDates.length).fill(null)],
+                    itemStyle: { color: '#94a3b8' }, areaStyle: { color: '#f1f5f9', opacity: 0.5 },
+                    showSymbol: false, step: 'end'
+                },
+                {
+                    name: '帳戶價值 (歷史)', type: 'line',
+                    data: [...value, ...Array(fDates.length).fill(null)],
+                    itemStyle: { color: '#2563eb' }, showSymbol: false, lineStyle: { width: 3 }
+                },
+                {
+                    name: '預測 (樂觀)', type: 'line',
+                    data: [...Array(dates.length-1).fill(null), lastValue, ...fHigh],
+                    lineStyle: { type: 'dashed', width: 2, color: '#dc2626' }, showSymbol: false
+                },
+                {
+                    name: '預測 (平均)', type: 'line',
+                    data: [...Array(dates.length-1).fill(null), lastValue, ...fAvg],
+                    lineStyle: { type: 'dashed', width: 2, color: '#3b82f6' }, showSymbol: false
+                },
+                {
+                    name: '預測 (悲觀)', type: 'line',
+                    data: [...Array(dates.length-1).fill(null), lastValue, ...fLow],
+                    lineStyle: { type: 'dashed', width: 2, color: '#16a34a' }, showSymbol: false
+                }
+            ]
+        };
+
+        myChart.setOption(option);
+        window.addEventListener('resize', () => myChart.resize());
+    }
+</script>
+
+</body>
+</html>
