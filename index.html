@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能資產配置 & 未來預測 (嚴格回測版)</title>
+    <title>智能資產配置 & 未來預測 (旗艦完整版)</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,7 +16,7 @@
     <div class="bg-gradient-to-r from-red-700 to-red-900 p-6 rounded-xl text-white shadow-lg flex justify-between items-center">
         <div>
             <h1 class="text-2xl font-bold"><i class="fa-solid fa-chart-line mr-2"></i> 智能資產配置 & 未來預測</h1>
-            <p class="text-red-100 text-sm mt-1">Portfolio Backtest & Future Projection (TW Mode)</p>
+            <p class="text-red-100 text-sm mt-1">Portfolio Backtest & Future Projection (Flagship Ver.)</p>
         </div>
         <div class="text-right">
             <div class="text-xs opacity-70">資料來源</div>
@@ -138,7 +138,7 @@
 
 <script>
     // ==========================================
-    // 🔑 請填入你的 Supabase 資訊
+    // 🔑 請填入你的 Supabase 資訊 (請把這兩行換成你的)
     // ==========================================
     const SUPABASE_URL = 'https://eytumbuyxpdvcoychphj.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_Xt1hKEf5Ye5p-vhFJvvOEg_JP4c2dGQ';
@@ -150,9 +150,39 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
         await loadFundList();
-        addFundRow();
+        addFundRow(); // 預設加一列
     });
 
+    // ==========================================
+    // 🆕 核心功能：自動再平衡權重 (蛋糕切分法)
+    // ==========================================
+    function autoBalanceWeights() {
+        const inputs = document.querySelectorAll('.fund-weight');
+        const count = inputs.length;
+        
+        if (count === 0) {
+            checkWeight();
+            return;
+        }
+
+        // 計算平均與餘數
+        // 例如 3 筆: base = 33, remainder = 1
+        const base = Math.floor(100 / count);
+        const remainder = 100 % count;
+
+        inputs.forEach((input, index) => {
+            // 把餘數分配給前幾筆 (例如第1筆拿34，後面拿33)
+            let w = base;
+            if (index < remainder) {
+                w += 1;
+            }
+            input.value = w;
+        });
+
+        checkWeight(); // 更新總和顯示
+    }
+
+    // 0. 模式切換邏輯
     window.setMode = function(mode) {
         currentMode = mode;
         const btnDca = document.getElementById('btn-dca');
@@ -184,6 +214,7 @@
         }
     }
 
+    // 新增基金列 (包含自動再平衡)
     window.addFundRow = function() {
         const container = document.getElementById('portfolio-list');
         const div = document.createElement('div');
@@ -201,16 +232,19 @@
                 ${optionsHtml}
             </select>
             <div class="relative w-20 flex-shrink-0">
-                <input type="number" class="fund-weight w-full p-2 border rounded text-sm text-center outline-none focus:border-red-500" placeholder="%" value="100">
+                <input type="number" class="fund-weight w-full p-2 border rounded text-sm text-center outline-none focus:border-red-500" placeholder="%">
                 <span class="absolute right-6 top-2 text-gray-400 text-xs pointer-events-none">%</span>
             </div>
-            <button onclick="this.parentElement.remove(); checkWeight();" class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition">
+            <button onclick="this.parentElement.remove(); autoBalanceWeights();" class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition">
                 <i class="fa-solid fa-trash"></i>
             </button>
         `;
         container.appendChild(div);
+        
         div.querySelector('.fund-weight').addEventListener('input', checkWeight);
-        checkWeight();
+        
+        // ✨ 新增後立即自動分配
+        autoBalanceWeights();
     }
 
     function checkWeight() {
@@ -222,7 +256,7 @@
         display.className = total === 100 ? "text-blue-600 font-bold" : "text-red-500 font-bold";
     }
 
-    // 4. 核心運算 (日期嚴格過濾版 + Forward Fill)
+    // 4. 核心運算
     window.runCalculation = async function() {
         const rows = document.querySelectorAll('.fund-row');
         const portfolio = [];
@@ -248,8 +282,6 @@
         const lumpSumAmt = parseFloat(document.getElementById('lump-sum-amount').value);
         const investDay = parseInt(document.getElementById('invest-day').value);
         const usdRate = parseFloat(document.getElementById('usd-rate').value);
-        
-        // 取得使用者設定的「進場日期」
         const userStartDateStr = document.getElementById('start-date').value;
         const userStartDate = userStartDateStr ? new Date(userStartDateStr) : new Date('1990-01-01');
 
@@ -271,8 +303,7 @@
                 fundDataMap[portfolio[index].id] = data;
             });
 
-            // --- 步驟 A: 建立統一時間軸 ---
-            // 規則：只包含 >= 使用者設定日期 的交易日
+            // 建立時間軸
             let dateSet = new Set();
             portfolio.forEach(p => {
                 fundDataMap[p.id].forEach(d => {
@@ -283,7 +314,7 @@
             });
             const timeline = Array.from(dateSet).sort();
 
-            if(timeline.length === 0) throw new Error("選定的日期區間沒有資料，請將日期往前調整 (請選過去的日期)");
+            if(timeline.length === 0) throw new Error("選定的日期區間沒有資料，請將日期往前調整");
 
             // 回測變數
             let totalUnits = portfolio.map(() => 0); 
@@ -295,11 +326,11 @@
             let lastKnownNavs = portfolio.map(() => null);
             let lastInvestMonth = "";
 
-            // --- 步驟 B: 開始跑每一天 ---
+            // 開始跑每一天
             timeline.forEach((dateStr, tIndex) => {
                 const currentDate = new Date(dateStr);
                 
-                // 1. 更新報價 (Forward Fill)
+                // Forward Fill 更新報價
                 portfolio.forEach((p, idx) => {
                     const fundNavs = fundDataMap[p.id];
                     const navRecord = fundNavs.find(n => n.nav_date === dateStr);
@@ -312,10 +343,7 @@
 
                 if (allFundsReady) {
                     
-                    // 2. 交易邏輯
-                    
-                    // [單筆申購]：在時間軸的「第一天」直接買入
-                    // 這樣才符合「假設我在這天進場」的邏輯
+                    // 單筆申購 (Lump Sum)
                     if (currentMode === 'lump' && totalCost === 0) {
                         totalCost = lumpSumAmt;
                         portfolio.forEach((p, idx) => {
@@ -325,7 +353,7 @@
                         });
                     }
 
-                    // [定期定額]：依照日期扣款
+                    // 定期定額 (DCA)
                     if (currentMode === 'dca') {
                         const day = currentDate.getDate();
                         const monthStr = dateStr.substring(0, 7);
@@ -345,7 +373,7 @@
                         }
                     }
 
-                    // 3. 計算市值
+                    // 計算市值
                     let currentPortfolioValue = 0;
                     portfolio.forEach((p, idx) => {
                         let nav = lastKnownNavs[idx];
@@ -359,21 +387,12 @@
                 }
             });
 
-            // --- 步驟 C: 未來預測 (基於回測區間的 CAGR) ---
+            // 計算 CAGR & 未來預測
             let weightedCAGR = 0;
-            
-            // 這裡我們直接用「投資組合的總報酬」來算 CAGR，這樣最準確
-            // 公式: (期末總值 / 總投入成本) ^ (1 / 年數) - 1 
-            // 注意：這對單筆申購很準。對 DCA 來說這是回報率，不完全是 CAGR，但用來做趨勢預測是可以的
-            
             const finalValue = chartValue[chartValue.length - 1];
-            const startValue = (currentMode === 'lump') ? totalCost : chartValue[0]; // DCA 一開始市值很低
             
-            // 為了預測合理，我們計算每一檔基金在「這段期間」的個別表現來加權
             portfolio.forEach((p, idx) => {
                 const fundNavs = fundDataMap[p.id];
-                // 找出區間內的頭尾
-                // 注意：要找 >= timeline[0] 的
                 const startNavObj = fundNavs.find(n => n.nav_date >= timeline[0]);
                 const endNavObj = fundNavs.find(n => n.nav_date === timeline[timeline.length-1]) || fundNavs[fundNavs.length-1];
                 
@@ -390,7 +409,6 @@
                 }
             });
 
-            // 如果回測時間太短，CAGR 可能會失真，給個預設值
             if (chartDates.length < 100 && weightedCAGR === 0) weightedCAGR = 0.06;
 
             let volatility = 0.15; 
@@ -404,6 +422,7 @@
             document.getElementById('stat-profit').className = `text-xl font-bold ${profitVal >= 0 ? 'text-red-600' : 'text-green-600'}`;
             document.getElementById('stat-cagr').innerText = (weightedCAGR * 100).toFixed(2) + '%';
 
+            // 預測曲線
             const futureDates = [];
             const futureHigh = [];
             const futureAvg = [];
@@ -475,7 +494,7 @@
                 },
                 {
                     name: '帳戶價值 (歷史)', type: 'line',
-                    data: [...value.map(v => v == null ? null : Math.round(v)), ...Array(fDates.length).fill(null)],
+                    data: [...value, ...Array(fDates.length).fill(null)],
                     itemStyle: { color: '#2563eb' }, showSymbol: false, lineStyle: { width: 3 }
                 },
                 {
