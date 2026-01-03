@@ -144,10 +144,14 @@ def save_navs_to_db(fund_id, data_list):
     if not conn: return
 
     try:
+        # 🔴【新增】偵探代碼：印出這一批資料的日期
+        dates_to_write = [item['date'] for item in data_list]
+        print(f"   🧐 [DEBUG] 準備寫入 Supabase 的日期: {dates_to_write}")
+
         cursor = conn.cursor()
         insert_data = [(fund_id, item['date'], item['nav']) for item in data_list]
         
-        # 使用 UPSERT：如果日期重複，就更新淨值 (防止 MoneyDJ 修正數據時我們沒更新到)
+        # 使用 UPSERT
         query = """
             INSERT INTO fund_navs (fund_id, nav_date, nav_value)
             VALUES %s
@@ -212,4 +216,5 @@ if __name__ == "__main__":
             
         print("-" * 40)
         
+
     print("\n✅ 每日更新完畢！")
