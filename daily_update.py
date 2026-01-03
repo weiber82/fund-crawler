@@ -147,9 +147,12 @@ def save_navs_to_db(fund_id, data_list):
         # 🔴【新增】偵探代碼：印出這一批資料的日期
         dates_to_write = [item['date'] for item in data_list]
         print(f"   🧐 [DEBUG] 準備寫入 Supabase 的日期: {dates_to_write}")
+        
 
         cursor = conn.cursor()
         insert_data = [(fund_id, item['date'], item['nav']) for item in data_list]
+        # 加在 save_navs_to_db 函式裡面， cursor = conn.cursor() 的前面
+        print(f"   🧐 [真相] 程式抓到的日期是: {[item['date'] for item in data_list]}")
         
         # 使用 UPSERT
         query = """
@@ -218,3 +221,4 @@ if __name__ == "__main__":
         
 
     print("\n✅ 每日更新完畢！")
+
