@@ -145,7 +145,7 @@
     const SUPABASE_URL = 'https://eytumbuyxpdvcoychphj.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_Xt1hKEf5Ye5p-vhFJvvOEg_JP4c2dGQ';
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let myChart = null;
     let allFundsList = []; 
     let currentMode = 'dca'; 
@@ -207,7 +207,7 @@
 
     async function loadFundList() {
         try {
-            const { data, error } = await supabase.from('funds').select('id, name, currency').order('id');
+            const { data, error } = await supabaseClient.from('funds').select('id, name, currency').order('id');
             if (error) throw error;
             allFundsList = data;
         } catch (err) {
@@ -291,7 +291,7 @@
 
         try {
             const promises = portfolio.map(item => 
-                supabase.from('fund_navs').select('nav_date, nav_value')
+                supabaseClient.from('fund_navs').select('nav_date, nav_value')
                 .eq('fund_id', item.id).order('nav_date', { ascending: true }).limit(50000)
             );
 
@@ -524,3 +524,4 @@
 
 </body>
 </html>
+
